@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="ad0167dd-f7d1-4dfe-9288-66772e6ed7ec" name="虚拟机" url="http://192.168.9.86">
+        <fileTransfer host="192.168.9.86" port="22" accessType="SFTP" password="df9bdf98df99df9bdf98df99" username="root">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+      <webServer id="282ce878-8e47-4a44-8885-383adf0b3db4" name="腾讯云" url="http://139.199.20.229">
+        <fileTransfer host="139.199.20.229" port="22" accessType="SFTP" username="root">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
