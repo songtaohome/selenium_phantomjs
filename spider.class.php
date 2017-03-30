@@ -9,6 +9,9 @@ namespace Facebook\WebDriver;
 
 use Facebook\WebDriver\Remote\DesiredCapabilities;
 use Facebook\WebDriver\Remote\RemoteWebDriver;
+use Facebook\WebDriver\Remote\WebDriverCapabilityType;
+
+use Facebook\WebDriver\Chrome\ChromeOptions;
 
 require_once('vendor/autoload.php');
 require_once('./log.php');
@@ -67,17 +70,20 @@ class spider
 
         $this->listRules = $_config['listRules'];
 
-        $this->capabilities = DesiredCapabilities::phantomjs();
-        $this->capabilities->setCapability("phantomjs.page.settings.userAgent", $this->_config['useragent']['mac_safari']);
+        $this->capabilities = DesiredCapabilities::chrome();
+        // $this->capabilities->setCapability("phantomjs.page.settings.userAgent", $this->_config['useragent']['win_chrome']);
         $this->driver = RemoteWebDriver::create(
             $this->_config['host'],
             $this->capabilities,
             $this->_config['connectionTimeout'],
             $this->_config['requestTimeout']
         );
-        // $window = new WebDriverDimension(1920, 1080);
-        // $this->driver->manage()->window()->setSize($window);
-        $this->driver->manage()->window()->maximize();
+        $window = new WebDriverDimension(1920, 1080);
+        $this->driver->manage()->window()->setSize($window);
+        // $this->driver->manage()->window()->maximize();
+        // $this->driver->manage()->deleteAllCookies();
+        sleep(1);
+
         $this->driver->manage()->timeouts()->implicitlyWait($this->_config['implicitlyWait']);
 
         /*↓↓↓↓↓↓↓↓↓↓↓ qiuyu test begin ↓↓↓↓↓↓↓↓↓↓↓*/
@@ -93,12 +99,101 @@ class spider
     }
 
     /**
+     * open new tab
+     *
+     * author: qiuyu
+     * date: 2017-03-30
+     */
+    public function openNewTab()
+    {
+        $this->debug('使用js打开新标签');
+        $js = 'window.open("", "_blank");';
+        $this->driver->executeScript($js);
+    }
+
+    /**
      * deals home page action
      *
      * author: minsongtao and qiuyu
      * date: 2017-03-29
      */
-    public function homePageAction(){
+    public function homePageAction()
+    {
+        // scroll down
+        $this->debug('下滚动开始');
+        $js = "window.scrollBy(0,100000000);";
+        $this->driver->executeScript($js);
+        sleep(2);
+
+        $this->debug('遍历主页');
+        $this->openPageType('_blank');
+
+        $this->driver->wait($this->_config['waitSeconds'])->until(
+            WebDriverExpectedCondition::visibilityOfElementLocated(
+                WebDriverBy::cssSelector("#FilterItemView_page_pagination li.a-selected")
+            )
+        );
+
+        // 获取首页的窗口句柄
+        $homeHandle = $this->driver->getWindowHandles();
+        $this->homeHandle = $homeHandle[0];
+
+        $elements = $this->driver->findElements(WebDriverBy::cssSelector("#widgetContent a#dealImage"));
+
+        $i = 0;
+        $urls = array();
+        foreach ($elements as $v) {
+            $url = $v->getAttribute('href');
+            if ($url) {
+                $urls[] = $url;
+                $i++;
+            }
+        }
+
+        $this->debug("这页有 $i 个商品");
+
+        // 遍历打开商品的链接.
+        foreach ($urls as $key => $url) {
+            $this->openNewTab();
+            $this->switchToEndWindow();
+            $this->driver->get($url);
+
+            if (!$this->isListPage()) {
+                $this->debug("不是列表页");
+                $this->detailPageAction();
+                $this->debug("切换为主页的窗口句柄");
+                $this->driver->switchTo()->window($this->homeHandle);
+            } else {
+                $this->debug("是列表页");
+                $this->debug("遍历列表页开始");
+
+                do {
+                    $this->listPageAction();
+                    $loop = $this->isExistNextPage();
+                } while ($loop);
+                $this->debug("关闭列表页");
+                $this->driver->close();
+                $this->debug("切换为主页的窗口句柄");
+                $this->driver->switchTo()->window($this->homeHandle);
+            }
+            $this->switchToEndWindow();
+            sleep(1);
+        }
+    }
+
+    /**
+     * deals home page action
+     *
+     * author: minsongtao and qiuyu
+     * date: 2017-03-29
+     */
+    public function homePageAction_back(){
+        // scroll down
+        $this->debug('下滚动开始');
+        $js = "window.scrollBy(0,100000000);";
+        $this->driver->executeScript($js);
+        sleep(2);
+
         $this->debug('遍历主页');
         $this->openPageType('_blank');
 
@@ -114,6 +209,15 @@ class spider
             $this->homeHandle = $homeHandle[0];
 
             $elements = $this->driver->findElements(WebDriverBy::cssSelector("#widgetContent a#dealImage"));
+
+            $i = 0;
+            foreach ($elements as $v) {
+                if ($v->getAttribute('href')) {
+                    $i++;
+                }
+            }
+            $this->debug('首页, 这页中有 '.$i.' 个商品');
+
             foreach ($elements as $v) {
                 $this->debug("主页中点击商品");
                 $v->click();
@@ -121,25 +225,29 @@ class spider
                 $this->debug("延时 $tmp_time 秒");
                 sleep($tmp_time);
                 $this->switchToEndWindow();
-
-                if (!$this->isListPage()) {
-                    $this->debug("不是列表页");
-                    $this->detailPageAction();
-                    $this->debug("切换为主页的窗口句柄");
-                    $this->driver->switchTo()->window($this->homeHandle);
-                } else {
-                    $this->debug("是列表页");
-                    $this->debug("遍历列表页开始");
-
-                    do {
-                        $this->listPageAction();
-                        $loop = $this->isExistNextPage();
-                    } while ($loop);
-                    $this->debug("关闭列表页");
-                    $this->driver->close();
-                    $this->debug("切换为主页的窗口句柄");
-                    $this->driver->switchTo()->window($this->homeHandle);
-                }
+                //
+                // if (!$this->isListPage()) {
+                //     $this->debug("不是列表页");
+                //     $this->detailPageAction();
+                //     $this->debug("切换为主页的窗口句柄");
+                //     $this->driver->switchTo()->window($this->homeHandle);
+                // } else {
+                //     $this->debug("是列表页");
+                //     $this->debug("遍历列表页开始");
+                //
+                //     do {
+                //         $this->listPageAction();
+                //         $loop = $this->isExistNextPage();
+                //     } while ($loop);
+                //     $this->debug("关闭列表页");
+                //     $this->driver->close();
+                //     $this->debug("切换为主页的窗口句柄");
+                //     $this->driver->switchTo()->window($this->homeHandle);
+                // }
+                $this->debug("关闭列表页");
+                $this->driver->close();
+                $this->debug("切换为主页的窗口句柄");
+                $this->driver->switchTo()->window($this->homeHandle);
             }
         }catch(Exception $e){
             $this->debug('点击失败');
